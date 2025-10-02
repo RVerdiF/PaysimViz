@@ -10,6 +10,8 @@ raw/
 
 notebooks/
 
+secrets.toml
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
