@@ -9,15 +9,16 @@ from src.Utils.queries import (
     all_data,
     dataframe_metrics,
     time_data,
-    transaction_type_analysis
+    transaction_type_analysis,
+    fraud_flagging_analysis
 )
 
 st.set_page_config(layout="wide")
+
 @st.cache_resource(show_spinner=False)
 def load_main_data() -> pd.DataFrame:
     df = return_df(all_data)
     return df
-
 
 def home():
     st.title("Home")
@@ -61,6 +62,7 @@ def load_transaction_data() -> tuple[pd.DataFrame,pd.DataFrame]:
 
 def data_exploration():
     time_data_df, transaction_type_analysis_df_T, transaction_type_analysis_df, dataframe_metrics_df = load_transaction_data()
+    df = load_main_data()
     
     col1,col2,col3,col4 = st.columns(4)
     with col1:
@@ -97,6 +99,44 @@ def data_exploration():
         st.plotly_chart(px.pie(transaction_type_analysis_df, names='type', values='count'), use_container_width=True)
     with col2:
         st.dataframe(transaction_type_analysis_df_T)
+    
+    st.markdown('---')
+    st.header("Fraud & Amount Analysis")
+
+    st.write("**High-Value Transactions (> $200k):**")
+    amount_over_200k = df[df['amount'] > 200000]
+    fraud_over_200k = amount_over_200k[amount_over_200k['isFraud'] == 1]
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Count of Transactions > $200k", f"{len(amount_over_200k):,}")
+    with col2:
+        st.metric("Count of Fraudulent Transactions > $200k", f"{len(fraud_over_200k):,}")
+    
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("`isFlaggedFraud` Performance")
+        # st.info("`isFlaggedFraud` is a basic heuristic from the dataset creators that flags transactions over 200k. This section analyzes its performance as a baseline model.")
+
+        confusion_matrix = pd.crosstab(df['isFraud'], df['isFlaggedFraud'], rownames=['Actual Fraud'], colnames=['Flagged Fraud'])
+        
+        fig = px.imshow(confusion_matrix, text_auto=True, labels=dict(x="Flagged as Fraud", y="Actual Fraud", color="Count"))
+        fig.update_xaxes(side="top")
+        st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        st.subheader("Transaction Amount Insights")
+        
+        st.write("**Descriptive Statistics for Amount:**")
+        descriptive_stats = df['amount'].describe().to_frame()
+        descriptive_stats_display = descriptive_stats.copy()
+        descriptive_stats_display['amount'] = descriptive_stats_display['amount'].apply(lambda x: f'${x:,.2f}')
+        descriptive_stats_display.loc['count', 'amount'] = f"{int(descriptive_stats.loc['count', 'amount']):,}"
+        st.dataframe(descriptive_stats_display)
+
+    # st.write("**Amount Quantiles:**")
+    # st.dataframe(df['amount'].quantile([0.25, 0.5, 0.75, 0.9, 0.99]).to_frame())
+
         
 def model_performance():
     st.title("Current Model Performance")

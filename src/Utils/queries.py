@@ -43,3 +43,10 @@ transaction_type_analysis = '''
     GROUP BY type
     ORDER BY count DESC
 '''
+
+fraud_flagging_analysis = '''
+    SELECT
+        isFraud,
+        isFlaggedFraud
+    FROM paysim
+'''
