@@ -342,9 +342,9 @@ PAGES = {
     "Data Exploration": data_exploration,
 }
 
-if __name__ == "__main__":
-    main()
-    st.sidebar.title('Navigation')
-    selection = st.sidebar.radio("Go to", list(PAGES.keys()))
-    page = PAGES[selection]
-    page()
+main()
+
+st.sidebar.title('Navigation')
+selection = st.sidebar.radio("Go to", list(PAGES.keys()))
+page = PAGES[selection]
+page()
