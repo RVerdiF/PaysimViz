@@ -3,7 +3,7 @@ from pathlib import Path
 import pandas as pd
 
 DB  = "paysim.db"
-DB_PATH = Path("src\DataBase") / DB
+DB_PATH = Path("src/DataBase") / DB
 CHUNK   = 200_000
 
 def return_df(query) -> pd.DataFrame:

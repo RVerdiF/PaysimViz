@@ -7,7 +7,7 @@ load_dotenv('.env')
 
 DATASET = "ealaxi/paysim1"
 OUT_DB  = "paysim.db"
-DB_PATH = Path("src\DataBase") / OUT_DB
+DB_PATH = Path("src/DataBase") / OUT_DB
 TABLE   = "paysim"
 CHUNK   = 200_000
 
