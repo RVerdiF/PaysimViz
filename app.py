@@ -3,8 +3,8 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-from src.DataHandler.Downloader import main
-from src.DataHandler.DataHandler import return_df
+from src.DataHandler.Downloader import main as setup_database
+from src.DataHandler.DataHandler import return_df, DB_PATH
 from src.Utils.queries import (
     all_data,
     dataframe_metrics,
@@ -20,7 +20,18 @@ logger.info("Application started.")
 
 st.set_page_config(layout="wide")
 
-@st.cache_resource(show_spinner=False)
+def download_wrapper():
+    """Wrapper to call the setup function and provide UI feedback."""
+    with st.spinner("Downloading dataset... See console for progress."):
+        try:
+            setup_database()
+            st.success("Download complete!")
+            st.balloons()
+        except Exception as e:
+            logger.error(f"An error occurred during dataset download: {e}")
+            st.error(f"An error occurred: {e}. Please check console logs and ensure kaggle.json is set up.")
+
+@st.cache_data(show_spinner=False)
 def load_main_data() -> pd.DataFrame:
     logger.info("Loading main data.")
     df = return_df(all_data)
@@ -29,71 +40,80 @@ def load_main_data() -> pd.DataFrame:
 
 def home():
     logger.info("Displaying Home page.")
-    st.title("Home")
-    st.write("Welcome to the PaySim dataset explorer!")
-    st.write("This app allows you to explore the PaySim dataset (https://www.kaggle.com/datasets/ealaxi/paysim1/data) and visualize its data.")  
     
-    with st.spinner("Loading data..."):
-        df = load_main_data()
+    if not DB_PATH.exists():
+        st.title("Welcome!")
+        st.write("The PaySim dataset is not yet downloaded. Click the button below to start the download.")
+        st.info("Note: This requires your `kaggle.json` API credentials to be set up in your environment. See console for progress.")
 
-    st.subheader("General DataFrame Information")
-    
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Number of Rows", f"{df.shape[0]:,}")
-    with col2:
-        st.metric("Number of Columns", df.shape[1])
-    with col3:
-        st.metric("Total Null Values", f"{df.isnull().sum().sum():,}")
-
-    st.subheader("Null Values per Column")
-    nulls = df.isnull().sum().to_frame().rename(columns={0: 'count'})
-    nulls = nulls[nulls['count'] > 0]
-    if not nulls.empty:
-        st.dataframe(nulls, use_container_width=True)
+        if st.button("Download Dataset", type="primary"):
+            download_wrapper()
+            st.rerun()
     else:
-        st.write("No null values found.")
+        st.title("Home")
+        st.write("Welcome to the PaySim dataset explorer!")
+        st.write("This app allows you to explore the PaySim dataset (https://www.kaggle.com/datasets/ealaxi/paysim1/data) and visualize its data.")  
+        
+        with st.spinner("Loading data..."):
+            df = load_main_data()
 
-    st.subheader("Negative Value Analysis")
-    numeric_cols = [col for col in df.columns if pd.api.types.is_numeric_dtype(df[col])]
-    
-    negative_counts = {}
-    for col in numeric_cols:
-        count = (df[col] < 0).sum()
-        if count > 0:
-            negative_counts[col] = count
+        st.subheader("General DataFrame Information")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Number of Rows", f"{df.shape[0]:,}")
+        with col2:
+            st.metric("Number of Columns", df.shape[1])
+        with col3:
+            st.metric("Total Null Values", f"{df.isnull().sum().sum():,}")
+
+        st.subheader("Null Values per Column")
+        nulls = df.isnull().sum().to_frame().rename(columns={0: 'count'})
+        nulls = nulls[nulls['count'] > 0]
+        if not nulls.empty:
+            st.dataframe(nulls, width='stretch')
+        else:
+            st.write("No null values found.")
+
+        st.subheader("Negative Value Analysis")
+        numeric_cols = [col for col in df.columns if pd.api.types.is_numeric_dtype(df[col])]
+        
+        negative_counts = {}
+        for col in numeric_cols:
+            count = (df[col] < 0).sum()
+            if count > 0:
+                negative_counts[col] = count
+                
+        if negative_counts:
+            st.warning("Negative values were found in the following columns:")
+            neg_df = pd.DataFrame(list(negative_counts.items()), columns=['Column', 'Count of Negative Values'])
+            st.dataframe(neg_df, width='stretch')
+        else:
+            st.success("No negative values found in any of the numeric columns.")
+
+        st.subheader("Descriptive Statistics")
+        st.dataframe(df.describe(), width='stretch')
+
+        st.subheader("Zero Amount Transaction Analysis")
+        zero_amount_transactions = df[df['amount'] == 0]
+        zero_amount_count = len(zero_amount_transactions)
+        
+        if zero_amount_count > 0:
+            st.warning(f"Found {zero_amount_count:,} transactions with an amount of 0.")
             
-    if negative_counts:
-        st.warning("Negative values were found in the following columns:")
-        neg_df = pd.DataFrame(list(negative_counts.items()), columns=['Column', 'Count of Negative Values'])
-        st.dataframe(neg_df, use_container_width=True)
-    else:
-        st.success("No negative values found in any of the numeric columns.")
+            st.write("Breakdown by transaction type:")
+            zero_amount_by_type = zero_amount_transactions['type'].value_counts().to_frame()
+            st.dataframe(zero_amount_by_type, width='stretch')
+            
+            st.write("Breakdown by fraud status:")
+            zero_amount_by_fraud = zero_amount_transactions['isFraud'].value_counts().to_frame()
+            zero_amount_by_fraud.index = zero_amount_by_fraud.index.map({0: 'Not Fraud', 1: 'Fraud'})
+            st.dataframe(zero_amount_by_fraud, width='stretch')
 
-    st.subheader("Descriptive Statistics")
-    st.dataframe(df.describe(), use_container_width=True)
+        else:
+            st.success("No transactions with an amount of 0 found.")
 
-    st.subheader("Zero Amount Transaction Analysis")
-    zero_amount_transactions = df[df['amount'] == 0]
-    zero_amount_count = len(zero_amount_transactions)
-    
-    if zero_amount_count > 0:
-        st.warning(f"Found {zero_amount_count:,} transactions with an amount of 0.")
-        
-        st.write("Breakdown by transaction type:")
-        zero_amount_by_type = zero_amount_transactions['type'].value_counts().to_frame()
-        st.dataframe(zero_amount_by_type, use_container_width=True)
-        
-        st.write("Breakdown by fraud status:")
-        zero_amount_by_fraud = zero_amount_transactions['isFraud'].value_counts().to_frame()
-        zero_amount_by_fraud.index = zero_amount_by_fraud.index.map({0: 'Not Fraud', 1: 'Fraud'})
-        st.dataframe(zero_amount_by_fraud, use_container_width=True)
-
-    else:
-        st.success("No transactions with an amount of 0 found.")
-    
-    
-@st.cache_resource(show_spinner=False)
+@st.cache_data(show_spinner=False)
 def load_transaction_data() -> tuple[pd.DataFrame,pd.DataFrame]:
     logger.info("Loading transaction data.")
     time_data_df = return_df(time_data)
@@ -108,6 +128,11 @@ def load_transaction_data() -> tuple[pd.DataFrame,pd.DataFrame]:
 
 def data_exploration():
     logger.info("Displaying Data Exploration page.")
+
+    if not DB_PATH.exists():
+        st.warning("The database has not been downloaded yet. Please go to the 'Home' page to download the dataset.")
+        return # Stop execution of the function
+
     time_data_df, transaction_type_analysis_df_T, transaction_type_analysis_df, dataframe_metrics_df = load_transaction_data()
     df = load_main_data()
     
@@ -129,7 +154,7 @@ def data_exploration():
 
     time_data_df_filtered = time_data_df.copy(deep=True)
     if period == "Hourly":
-        time_data_df_filtered['date'] = time_data_df_filtered['date'].dt.to_period('H').dt.to_timestamp()
+        time_data_df_filtered['date'] = time_data_df_filtered['date'].dt.to_period('h').dt.to_timestamp()
         time_data_df_filtered = time_data_df_filtered.groupby('date').sum().reset_index()
     elif period == "Daily":
         time_data_df_filtered['date'] = time_data_df_filtered['date'].dt.to_period('D').dt.to_timestamp()
@@ -234,7 +259,7 @@ def data_exploration():
     account_metrics['Fraudulent_Transactions'] = account_metrics['Fraudulent_Transactions'].astype(int)
     account_metrics = account_metrics.sort_values(by=['Fraudulent_Transactions','Total_Transactions'], ascending=False).reset_index(drop=True).head(10)
     
-    st.dataframe(account_metrics, use_container_width=True)
+    st.dataframe(account_metrics, width='stretch')
 
     st.subheader("Explore All Transactions of Potentially Fraudulent Accounts")
     
@@ -246,7 +271,7 @@ def data_exploration():
     
     if selected_accounts:
         mule_account_transactions_selection = df[df['nameOrig'].isin(selected_accounts) | df['nameDest'].isin(selected_accounts)]
-        st.dataframe(mule_account_transactions_selection, use_container_width=True)
+        st.dataframe(mule_account_transactions_selection, width='stretch')
 
     st.markdown('---')
     st.header("Fraudulent Transaction Balance Analysis")
@@ -335,7 +360,7 @@ def data_exploration():
     if '% Draining (Fraud)' not in summary.columns:
         summary['% Draining (Fraud)'] = 0
 
-    st.dataframe(summary[['% Draining (Not Fraud)', '% Draining (Fraud)']].style.format('{:.2f}%'), use_container_width=True)
+    st.dataframe(summary[['% Draining (Not Fraud)', '% Draining (Fraud)']].style.format('{:.2f}%'), width='stretch')
 
     st.warning("Proposed Rule: Flag 'TRANSFER' type transactions that result in a zero balance in the origin account for manual review.")
 
@@ -353,8 +378,9 @@ PAGES = {
     "Data Exploration": data_exploration,
 }
 
-main()
-logger.info("Data setup main() executed.")
+# The data is expected to be downloaded and prepared before running the app.
+# Run `python src/DataHandler/Downloader.py` manually to do this.
+logger.info("Skipping data setup. Database is expected to exist.")
 
 st.sidebar.title('Navigation')
 selection = st.sidebar.radio("Go to", list(PAGES.keys()))

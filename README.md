@@ -4,6 +4,7 @@ A Streamlit application for exploring and analyzing the PaySim synthetic financi
 
 ## Features
 
+- **Data-Aware Loading:** The app checks if the dataset exists. If not, it presents a simple one-click download button.
 - **Home Page:** General statistics about the dataset, including null value analysis, negative value checks, and zero-amount transaction reports.
 - **Data Exploration:** In-depth analysis of the dataset, including:
     - Transaction distribution over time (Hourly, Daily, Weekly).
@@ -15,11 +16,16 @@ A Streamlit application for exploring and analyzing the PaySim synthetic financi
 
 ## Dataset
 
-This application uses the PaySim dataset, which is a synthetic dataset generated using the PaySim simulator. The dataset is designed to be a realistic simulation of mobile money transactions and is intended for fraud detection research.
+This application uses the PaySim dataset from Kaggle. You can find more information here: [PaySim Synthetic Dataset](https://www.kaggle.com/datasets/ealaxi/paysim1/data)
 
-You can find more information about the dataset on Kaggle: [PaySim Synthetic Dataset](https://www.kaggle.com/datasets/ealaxi/paysim1/data)
+## Getting Started
 
-## Installation
+### 1. Prerequisites
+
+- Python 3.8+
+- A Kaggle account and an API token (`kaggle.json`).
+
+### 2. Installation
 
 1.  **Clone the repository:**
     ```bash
@@ -27,26 +33,32 @@ You can find more information about the dataset on Kaggle: [PaySim Synthetic Dat
     cd KrakenInterview
     ```
 
-2.  **Create and activate a virtual environment (recommended):**
+2.  **Set up Kaggle API Credentials:**
+    - Download your `kaggle.json` API token from your Kaggle account settings.
+    - Place the `kaggle.json` file in the expected directory. For most systems, this is `~/.kaggle/kaggle.json`. The application needs this file to download the dataset.
+
+3.  **Create and activate a virtual environment (recommended):**
     ```bash
     python -m venv .venv
     source .venv/bin/activate  # On Windows, use `.venv\Scripts\activate`
     ```
 
-3.  **Install the dependencies:**
+4.  **Install the dependencies:**
     ```bash
     pip install -r requirements.txt
     ```
 
-## Usage
+### 3. Usage
 
-To run the Streamlit application, execute the following command in your terminal:
+1.  **Run the Streamlit application:**
+    ```bash
+    streamlit run app.py
+    ```
 
-```bash
-streamlit run app.py
-```
-
-The application will open in your web browser.
+2.  **Download the Dataset:**
+    - On the first launch, the app will display a "Download Dataset" button.
+    - Click this button to automatically download the data from Kaggle and set up the local database.
+    - After the download is complete, the app will proceed to the main data explorer.
 
 ## Project Structure
 ```
