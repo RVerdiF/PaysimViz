@@ -31,7 +31,7 @@ def download_wrapper():
             logger.error(f"An error occurred during dataset download: {e}")
             st.error(f"An error occurred: {e}. Please check console logs and ensure kaggle.json is set up.")
 
-@st.cache_resource(show_spinner=False)
+@st.cache_data(show_spinner=False)
 def load_main_data() -> pd.DataFrame:
     logger.info("Loading main data.")
     df = return_df(all_data)
@@ -48,7 +48,6 @@ def home():
 
         if st.button("Download Dataset", type="primary"):
             download_wrapper()
-            st.rerun()
     else:
         st.title("Home")
         st.write("Welcome to the PaySim dataset explorer!")

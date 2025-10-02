@@ -50,14 +50,21 @@ def main():
         logger.info('Dataset downloaded.')
 
         csv_path = "dl/PS_20174392719_1491204439457_log.csv"
-        df = pd.read_csv(csv_path)
-        os.remove(csv_path)
 
         os.makedirs(DB_PATH.parent, exist_ok=True)
-
         con = sqlite3.connect(DB_PATH)
-        df.to_sql("paysim", con, if_exists="replace", index=False, chunksize=CHUNK)
+
+        # Process the CSV in chunks to avoid memory errors
+        logger.info("Processing CSV in chunks...")
+        for i, chunk in enumerate(pd.read_csv(csv_path, chunksize=CHUNK)):
+            logger.info(f"Processing chunk {i+1}...")
+            # For the first chunk, replace the table, for others, append.
+            if_exists_strategy = "replace" if i == 0 else "append"
+            chunk.to_sql("paysim", con, if_exists=if_exists_strategy, index=False)
+
         con.close()
+        os.remove(csv_path) # Remove the CSV after successful processing
+        logger.info("Finished processing all chunks.")
         logger.info('Dataset saved to database.')
     else:
         logger.info('Dataset already downloaded.')
