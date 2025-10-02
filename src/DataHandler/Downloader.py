@@ -11,7 +11,7 @@ DATASET = "ealaxi/paysim1"
 OUT_DB = "paysim.db"
 DB_PATH = Path("src/DataBase") / OUT_DB
 TABLE = "paysim"
-CHUNK = 200_000
+CHUNK = 400_000
 
 def setup_kaggle_api():
     """Set up Kaggle API credentials from Streamlit secrets."""

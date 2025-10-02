@@ -4,13 +4,22 @@ import pandas as pd
 import plotly.express as px
 
 from src.DataHandler.Downloader import main as setup_database
-from src.DataHandler.DataHandler import return_df, DB_PATH
+from src.DataHandler.DataHandler import return_df, DB_PATH, return_df_with_params
 from src.Utils.queries import (
     all_data,
     dataframe_metrics,
     time_data,
     transaction_type_analysis,
-    fraud_flagging_analysis
+    fraud_flagging_analysis,
+    home_page_data,
+    descriptive_stats_query,
+    zero_amount_by_type_query,
+    zero_amount_by_fraud_query,
+    negative_value_query,
+    get_fraud_transactions_query,
+    confusion_matrix_query,
+    draining_transaction_stats_query,
+    draining_behavior_by_type_query
 )
 from src.LogHandler.SetupLog import setup_logger
 
@@ -30,6 +39,69 @@ def download_wrapper():
         except Exception as e:
             logger.error(f"An error occurred during dataset download: {e}")
             st.error(f"An error occurred: {e}. Please check console logs and ensure kaggle.json is set up.")
+
+@st.cache_data(show_spinner=False)
+def load_home_page_data() -> pd.DataFrame:
+    logger.info("Loading home page data.")
+    df = return_df(home_page_data)
+    logger.info("Home page data loaded successfully.")
+    return df
+
+@st.cache_data(show_spinner=False)
+def load_descriptive_stats() -> pd.DataFrame:
+    logger.info("Loading descriptive stats.")
+    df = return_df(descriptive_stats_query)
+    logger.info("Descriptive stats loaded successfully.")
+    return df
+
+@st.cache_data(show_spinner=False)
+def load_zero_amount_by_type() -> pd.DataFrame:
+    logger.info("Loading zero amount by type.")
+    df = return_df(zero_amount_by_type_query)
+    logger.info("Zero amount by type loaded successfully.")
+    return df
+
+@st.cache_data(show_spinner=False)
+def load_zero_amount_by_fraud() -> pd.DataFrame:
+    logger.info("Loading zero amount by fraud.")
+    df = return_df(zero_amount_by_fraud_query)
+    logger.info("Zero amount by fraud loaded successfully.")
+    return df
+
+@st.cache_data(show_spinner=False)
+def load_negative_value_data() -> pd.DataFrame:
+    logger.info("Loading negative value data.")
+    df = return_df(negative_value_query)
+    logger.info("Negative value data loaded successfully.")
+    return df
+
+@st.cache_data(show_spinner=False)
+def load_fraud_transactions() -> pd.DataFrame:
+    logger.info("Loading fraud transactions.")
+    df = return_df(get_fraud_transactions_query)
+    logger.info("Fraud transactions loaded successfully.")
+    return df
+
+@st.cache_data(show_spinner=False)
+def load_confusion_matrix() -> pd.DataFrame:
+    logger.info("Loading confusion matrix data.")
+    df = return_df(confusion_matrix_query)
+    logger.info("Confusion matrix data loaded successfully.")
+    return df
+
+@st.cache_data(show_spinner=False)
+def load_draining_transaction_stats() -> pd.DataFrame:
+    logger.info("Loading draining transaction stats.")
+    df = return_df(draining_transaction_stats_query)
+    logger.info("Draining transaction stats loaded successfully.")
+    return df
+
+@st.cache_data(show_spinner=False)
+def load_draining_behavior_by_type() -> pd.DataFrame:
+    logger.info("Loading draining behavior by type.")
+    df = return_df(draining_behavior_by_type_query)
+    logger.info("Draining behavior by type loaded successfully.")
+    return df
 
 @st.cache_data(show_spinner=False)
 def load_main_data() -> pd.DataFrame:
@@ -54,20 +126,24 @@ def home():
         st.write("This app allows you to explore the PaySim dataset (https://www.kaggle.com/datasets/ealaxi/paysim1/data) and visualize its data.")  
         
         with st.spinner("Loading data..."):
-            df = load_main_data()
+            home_df = load_home_page_data()
+            descriptive_stats_df = load_descriptive_stats()
+            zero_amount_by_type_df = load_zero_amount_by_type()
+            zero_amount_by_fraud_df = load_zero_amount_by_fraud()
+            negative_value_df = load_negative_value_data()
 
         st.subheader("General DataFrame Information")
         
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Number of Rows", f"{df.shape[0]:,}")
+            st.metric("Number of Rows", f"{home_df['total_rows'].iloc[0]:,}")
         with col2:
-            st.metric("Number of Columns", df.shape[1])
+            st.metric("Number of Columns", len(home_df.columns))
         with col3:
-            st.metric("Total Null Values", f"{df.isnull().sum().sum():,}")
+            st.metric("Total Null Values", f"{home_df.iloc[0, 1:].sum():,}")
 
         st.subheader("Null Values per Column")
-        nulls = df.isnull().sum().to_frame().rename(columns={0: 'count'})
+        nulls = home_df.iloc[0, 1:].T.to_frame().rename(columns={0: 'count'})
         nulls = nulls[nulls['count'] > 0]
         if not nulls.empty:
             st.dataframe(nulls, width='stretch')
@@ -75,39 +151,32 @@ def home():
             st.write("No null values found.")
 
         st.subheader("Negative Value Analysis")
-        numeric_cols = [col for col in df.columns if pd.api.types.is_numeric_dtype(df[col])]
-        
-        negative_counts = {}
-        for col in numeric_cols:
-            count = (df[col] < 0).sum()
-            if count > 0:
-                negative_counts[col] = count
-                
-        if negative_counts:
+        negative_counts = negative_value_df.T.rename(columns={0: 'Count of Negative Values'})
+        negative_counts = negative_counts[negative_counts['Count of Negative Values'] > 0]
+
+        if not negative_counts.empty:
             st.warning("Negative values were found in the following columns:")
-            neg_df = pd.DataFrame(list(negative_counts.items()), columns=['Column', 'Count of Negative Values'])
-            st.dataframe(neg_df, width='stretch')
+            st.dataframe(negative_counts, width='stretch')
         else:
             st.success("No negative values found in any of the numeric columns.")
 
         st.subheader("Descriptive Statistics")
-        st.dataframe(df.describe(), width='stretch')
+        descriptive_stats_df = descriptive_stats_df.set_index('metric').T
+        st.dataframe(descriptive_stats_df, width='stretch')
 
         st.subheader("Zero Amount Transaction Analysis")
-        zero_amount_transactions = df[df['amount'] == 0]
-        zero_amount_count = len(zero_amount_transactions)
+        zero_amount_count = zero_amount_by_type_df['count'].sum()
         
         if zero_amount_count > 0:
             st.warning(f"Found {zero_amount_count:,} transactions with an amount of 0.")
             
             st.write("Breakdown by transaction type:")
-            zero_amount_by_type = zero_amount_transactions['type'].value_counts().to_frame()
-            st.dataframe(zero_amount_by_type, width='stretch')
+            st.dataframe(zero_amount_by_type_df.set_index('type'), width='stretch')
             
             st.write("Breakdown by fraud status:")
-            zero_amount_by_fraud = zero_amount_transactions['isFraud'].value_counts().to_frame()
-            zero_amount_by_fraud.index = zero_amount_by_fraud.index.map({0: 'Not Fraud', 1: 'Fraud'})
-            st.dataframe(zero_amount_by_fraud, width='stretch')
+            zero_amount_by_fraud_df.index = zero_amount_by_fraud_df.isFraud.map({0: 'Not Fraud', 1: 'Fraud'})
+            zero_amount_by_fraud_df = zero_amount_by_fraud_df.drop(columns=['isFraud'])
+            st.dataframe(zero_amount_by_fraud_df, width='stretch')
 
         else:
             st.success("No transactions with an amount of 0 found.")
@@ -133,7 +202,10 @@ def data_exploration():
         return # Stop execution of the function
 
     time_data_df, transaction_type_analysis_df_T, transaction_type_analysis_df, dataframe_metrics_df = load_transaction_data()
-    df = load_main_data()
+    fraud_df = load_fraud_transactions()
+    confusion_matrix_df = load_confusion_matrix()
+    draining_stats_df = load_draining_transaction_stats()
+    draining_behavior_df = load_draining_behavior_by_type()
     
     col1,col2,col3,col4 = st.columns(4)
     with col1:
@@ -179,7 +251,7 @@ def data_exploration():
     with col1:
         st.subheader("`isFlaggedFraud` Performance")
         
-        confusion_matrix = pd.crosstab(df['isFraud'], df['isFlaggedFraud'], rownames=['Actual Fraud'], colnames=['Flagged Fraud'])
+        confusion_matrix = confusion_matrix_df.pivot_table(index='isFraud', columns='isFlaggedFraud', values='count').fillna(0)
         
         fig = px.imshow(confusion_matrix, text_auto=True, labels=dict(x="Flagged as Fraud", y="Actual Fraud", color="Count"))
         fig.update_xaxes(side="top")
@@ -189,12 +261,11 @@ def data_exploration():
         st.subheader("Transaction Amount Insights")
         
         st.write("**Descriptive Statistics for Amount:**")
-        descriptive_stats = df[df['isFraud']==1]['amount'].describe().to_frame()
+        descriptive_stats = fraud_df['amount'].describe().to_frame()
         descriptive_stats_display = descriptive_stats.copy()
         descriptive_stats_display['amount'] = descriptive_stats_display['amount'].apply(lambda x: f'${x:,.2f}')
         descriptive_stats_display.loc['count', 'amount'] = f"{int(descriptive_stats.loc['count', 'amount']):,}"
         
-        fraud_df = df[df['isFraud'] == 1]
         large_fraud_transactions = fraud_df[fraud_df['amount'] > 200000]
         total_fraud_transactions = len(fraud_df)
         large_fraud_count = len(large_fraud_transactions)
@@ -214,8 +285,6 @@ def data_exploration():
     st.header("Mule Account Analysis")
     st.info("Accounts that repeatedly appear in fraudulent transactions may be 'mule accounts,' used to concentrate and launder money.")
 
-    fraud_df = df[df['isFraud'] == 1]
-    
     fraudulent_accounts = pd.concat([fraud_df['nameOrig'], fraud_df['nameDest']]).unique()
 
     col1, col2 = st.columns(2)
@@ -232,34 +301,6 @@ def data_exploration():
         top_dest.rename(columns={'count': 'Number of Frauds'}, inplace=True)
         st.dataframe(top_dest)
         
-    st.subheader("Top Mule Accounts Overview")
-    mule_account_transactions = df[df['nameOrig'].isin(fraudulent_accounts) | df['nameDest'].isin(fraudulent_accounts)]
-    
-    # Melt the dataframe to have one account per row
-    melted_df = pd.melt(mule_account_transactions, id_vars=['isFraud', 'amount'], value_vars=['nameOrig', 'nameDest'], value_name='Account')
-    
-    # Calculate total transactions and amount
-    total_metrics = melted_df.groupby('Account').agg(
-        Total_Transactions=('Account', 'size'),
-        Total_Amount=('amount', 'sum')
-    ).reset_index()
-    
-    # Calculate fraudulent transactions and amount
-    fraud_metrics = melted_df[melted_df['isFraud'] == 1].groupby('Account').agg(
-        Fraudulent_Transactions=('isFraud', 'size'),
-        Fraudulent_Amount=('amount', 'sum')
-    ).reset_index()
-    
-    # Merge the metrics
-    account_metrics = pd.merge(total_metrics, fraud_metrics, on='Account', how='left').fillna(0)
-    
-    # Filter for fraudulent accounts and sort
-    account_metrics = account_metrics[account_metrics['Account'].isin(fraudulent_accounts)]
-    account_metrics['Fraudulent_Transactions'] = account_metrics['Fraudulent_Transactions'].astype(int)
-    account_metrics = account_metrics.sort_values(by=['Fraudulent_Transactions','Total_Transactions'], ascending=False).reset_index(drop=True).head(10)
-    
-    st.dataframe(account_metrics, width='stretch')
-
     st.subheader("Explore All Transactions of Potentially Fraudulent Accounts")
     
     selected_accounts = st.multiselect(
@@ -269,16 +310,17 @@ def data_exploration():
     )
     
     if selected_accounts:
-        mule_account_transactions_selection = df[df['nameOrig'].isin(selected_accounts) | df['nameDest'].isin(selected_accounts)]
+        placeholders = ', '.join('?' for _ in selected_accounts)
+        query = f"SELECT * FROM paysim WHERE nameOrig IN ({placeholders}) OR nameDest IN ({placeholders})"
+        params = selected_accounts * 2
+        mule_account_transactions_selection = return_df_with_params(query, params)
         st.dataframe(mule_account_transactions_selection, width='stretch')
 
     st.markdown('---')
     st.header("Fraudulent Transaction Balance Analysis")
     
-    fraud_transactions = df[df['isFraud'] == 1]
-    
     st.subheader("Distribution of Origin Account Balance After Fraudulent Transactions")
-    balance_counts = fraud_transactions['newbalanceOrig'].value_counts().reset_index()
+    balance_counts = fraud_df['newbalanceOrig'].value_counts().reset_index()
     balance_counts.columns = ['newbalanceOrig', 'count']
     fig = px.scatter(balance_counts, x='newbalanceOrig', y='count', title='Number of Fraudulent Transactions per Origin Account Balance')
     st.plotly_chart(fig, use_container_width=True)
@@ -292,8 +334,8 @@ def data_exploration():
     col1, col2= st.columns(2)
     with col1:
         st.subheader("Analysis of Balance-Draining Frauds")
-        draining_frauds_count = fraud_transactions[fraud_transactions['amount'] == fraud_transactions['oldbalanceOrg']].shape[0]
-        total_fraud_count = fraud_transactions.shape[0]
+        draining_frauds_count = fraud_df[fraud_df['amount'] == fraud_df['oldbalanceOrg']].shape[0]
+        total_fraud_count = len(fraud_df)
 
         st.metric(
             "Fraudulent Transactions that Drain the Origin Account",
@@ -309,8 +351,8 @@ def data_exploration():
 
     with col2:
         st.subheader("Analysis of Balance-Draining Transactions (All)")
-        draining_transactions_all_count = df[df['amount'] == df['oldbalanceOrg']].shape[0]
-        total_transactions_all = df.shape[0]
+        draining_transactions_all_count = draining_stats_df['draining_count'].iloc[0]
+        total_transactions_all = draining_stats_df['total_count'].iloc[0]
         
         col1, col2 = st.columns(2)
         with col1:
@@ -334,24 +376,8 @@ def data_exploration():
 
     st.subheader("Balance-Draining Behavior by Transaction Type")
 
-    # Create a boolean column for draining transactions
-    df['isDraining'] = df['amount'] == df['oldbalanceOrg']
-    
-    # Group by type and fraud status, then calculate the percentage of draining transactions
-    summary = df.groupby(['type', 'isFraud'])['isDraining'].value_counts(normalize=True).unstack().fillna(0)
-    if True in summary.columns:
-        summary = summary.loc[:, True] * 100 # Get the percentage for isDraining=True
-    else: # Handle case where no draining transactions exist
-        summary[True] = 0
-        summary = summary.loc[:, True] * 100
-
-    summary = summary.unstack(level='isFraud').fillna(0)
-    
-    # Rename columns
-    if 0 in summary.columns:
-        summary.rename(columns={0: '% Draining (Not Fraud)'}, inplace=True)
-    if 1 in summary.columns:
-        summary.rename(columns={1: '% Draining (Fraud)'}, inplace=True)
+    summary = draining_behavior_df.pivot_table(index='type', columns='isFraud', values='draining_percentage').fillna(0)
+    summary.rename(columns={0: '% Draining (Not Fraud)', 1: '% Draining (Fraud)'}, inplace=True)
 
     # Ensure both columns exist
     if '% Draining (Not Fraud)' not in summary.columns:

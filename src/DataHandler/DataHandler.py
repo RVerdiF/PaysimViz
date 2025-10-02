@@ -13,3 +13,11 @@ def return_df(query) -> pd.DataFrame:
         return data
     except Exception as e:
         raise sqlite3.Error(e)
+
+def return_df_with_params(query, params) -> pd.DataFrame:
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            data = pd.read_sql(query, conn, params=params)
+        return data
+    except Exception as e:
+        raise sqlite3.Error(e)
