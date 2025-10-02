@@ -12,15 +12,23 @@ from src.Utils.queries import (
     transaction_type_analysis,
     fraud_flagging_analysis
 )
+from src.LogHandler.SetupLog import setup_logger
+
+# Setup logger
+logger = setup_logger()
+logger.info("Application started.")
 
 st.set_page_config(layout="wide")
 
 @st.cache_resource(show_spinner=False)
 def load_main_data() -> pd.DataFrame:
+    logger.info("Loading main data.")
     df = return_df(all_data)
+    logger.info("Main data loaded successfully.")
     return df
 
 def home():
+    logger.info("Displaying Home page.")
     st.title("Home")
     st.write("Welcome to the PaySim dataset explorer!")
     st.write("This app allows you to explore the PaySim dataset (https://www.kaggle.com/datasets/ealaxi/paysim1/data) and visualize its data.")  
@@ -87,6 +95,7 @@ def home():
     
 @st.cache_resource(show_spinner=False)
 def load_transaction_data() -> tuple[pd.DataFrame,pd.DataFrame]:
+    logger.info("Loading transaction data.")
     time_data_df = return_df(time_data)
     time_data_df['date'] = pd.to_datetime(time_data_df['date'])
     transaction_type_analysis_df = return_df(transaction_type_analysis)
@@ -94,9 +103,11 @@ def load_transaction_data() -> tuple[pd.DataFrame,pd.DataFrame]:
     transposed.columns = transposed.iloc[0]
     transposed = transposed.drop(transposed.index[0])
     dataframe_metrics_df = return_df(dataframe_metrics).melt(var_name='metric', value_name='value')
+    logger.info("Transaction data loaded successfully.")
     return time_data_df, transposed, transaction_type_analysis_df, dataframe_metrics_df
 
 def data_exploration():
+    logger.info("Displaying Data Exploration page.")
     time_data_df, transaction_type_analysis_df_T, transaction_type_analysis_df, dataframe_metrics_df = load_transaction_data()
     df = load_main_data()
     
@@ -343,8 +354,10 @@ PAGES = {
 }
 
 main()
+logger.info("Data setup main() executed.")
 
 st.sidebar.title('Navigation')
 selection = st.sidebar.radio("Go to", list(PAGES.keys()))
+logger.info(f"Navigating to {selection} page.")
 page = PAGES[selection]
 page()
