@@ -32,6 +32,9 @@ def main():
         df = pd.read_csv(csv_path)
         os.remove(csv_path)
 
+        # Ensure the database directory exists
+        os.makedirs(DB_PATH.parent, exist_ok=True)
+
         con = sqlite3.connect(DB_PATH)
         df.to_sql("paysim", con, if_exists="replace", index=False,chunksize=CHUNK)
         con.close()
