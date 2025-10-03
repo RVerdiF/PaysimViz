@@ -33,6 +33,23 @@ logger.info("Application started.")
 
 st.set_page_config(layout="wide")
 
+# Custom CSS for st.info with purple theme
+st.markdown(
+    """
+    <style>
+    div[data-testid="stAlertContainer"] {
+        background-color: #b494e6;
+        border-left: 5px solid #7434f3;
+        color: #262730;
+        padding: 10px;
+        border-radius: 5px;
+        margin-bottom: 10px;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 def download_wrapper():
     """Wrapper to call the setup function and provide UI feedback."""
     with st.spinner("Downloading dataset... See console for progress."):
@@ -118,7 +135,7 @@ def home():
     logger.info("Displaying Home page.")
     
     if not DB_PATH.exists():
-        st.title("Welcome!")
+        st.title("Hi!")
         st.write("The PaySim dataset is not yet downloaded. Click the button below to start the download.")
         st.info("Note: This requires your Kaggle API credentials to be set up in Streamlit's secrets. Please add your Kaggle username and key to the secrets file.")
 
@@ -126,7 +143,7 @@ def home():
             download_wrapper()
             st.rerun()
     else:
-        st.title("Home")
+        st.title("Hi!")
         st.write("Welcome to the PaySim dataset explorer!")
         st.write("This app allows you to explore the PaySim dataset (https://www.kaggle.com/datasets/ealaxi/paysim1/data) and visualize its data.")  
         
@@ -202,6 +219,7 @@ def load_transaction_data() -> tuple[pd.DataFrame,pd.DataFrame]:
     transposed = transaction_type_analysis_df.T
     transposed.columns = transposed.iloc[0]
     transposed = transposed.drop(transposed.index[0])
+    transposed.index.name = 'METRIC'
     dataframe_metrics_df = return_df(dataframe_metrics).melt(var_name='metric', value_name='value')
     logger.info("Transaction data loaded successfully.")
     return time_data_df, transposed, transaction_type_analysis_df, dataframe_metrics_df
@@ -239,7 +257,7 @@ def data_exploration():
         st.metric("Total Fraud Amount", f"${amount/1_000_000:,.0f}M")
 
     st.subheader("Transactions distribution over time")
-    st.info("For this exercise, let's assume the final step (1) is 2025-10-01 00:00:00. From that, each step is subtracted from the start date." )
+    st.info("For this exercise, let's assume the final step (1) is 2025-10-01 00:00:00. From that, each step is subtracted from the start date, ending on 2025-08-31 01:00:00" )
     period = st.radio("Select the time range", ["Hourly", "Daily", "Weekly"], key="time_range", horizontal=True)
 
     time_data_df_filtered = time_data_df.copy(deep=True)
@@ -253,13 +271,17 @@ def data_exploration():
         time_data_df_filtered['date'] = time_data_df_filtered['date'].dt.to_period('W').dt.to_timestamp()
         time_data_df_filtered = time_data_df_filtered.groupby('date').sum().reset_index()
     
-    st.plotly_chart(px.line(time_data_df_filtered, x='date', y='count'), use_container_width=True)
+    st.plotly_chart(px.line(time_data_df_filtered, x='date', y='count', color_discrete_sequence=["#7434f3", "#b494e6", "#bc91f7"]), use_container_width=True)
     st.markdown('---')
     st.subheader("Transaction types overview")
-    col1, col2 = st.columns(2)
+    col1, col2 = st.columns([0.3,0.7])
     with col1:
-        st.plotly_chart(px.pie(transaction_type_analysis_df, names='type', values='count'), use_container_width=True)
+        st.plotly_chart(px.pie(transaction_type_analysis_df, title='Count of transactions by type', names='type', values='count', color_discrete_sequence=["#7434f3", "#b494e6", "#bc91f7"]), use_container_width=True)
     with col2:
+        st.write(' ')
+        st.write(' ')
+        st.write(' ')
+        st.write(' ')
         st.dataframe(transaction_type_analysis_df_T)
     
     st.markdown('---')
@@ -272,7 +294,7 @@ def data_exploration():
         
         confusion_matrix = confusion_matrix_df.pivot_table(index='isFraud', columns='isFlaggedFraud', values='count').fillna(0)
         
-        fig = px.imshow(confusion_matrix, text_auto=True, labels=dict(x="Flagged as Fraud", y="Actual Fraud", color="Count"))
+        fig = px.imshow(confusion_matrix, text_auto=True, labels=dict(x="Flagged as Fraud", y="Actual Fraud", color="Count"), color_continuous_scale=["#b494e6", "#7434f3"])
         fig.update_xaxes(side="top")
         st.plotly_chart(fig, use_container_width=True)
 
@@ -292,7 +314,7 @@ def data_exploration():
         value=200000
         new_row = pd.DataFrame({'amount': [f'${value:,.2f}'] }, index=[f'{percentage:.0f}%'])
         descriptive_stats_display = pd.concat([descriptive_stats_display, new_row]).sort_index(ascending=False)
-        
+        descriptive_stats_display.index.name = 'metric'
         st.dataframe(descriptive_stats_display)
 
     st.info("The current system operates on a single, rigid rule: it flags any transfer exceeding $200,000 in a single transaction.\n\n"\
@@ -344,7 +366,7 @@ def data_exploration():
             )
 
             account_metrics_lf = melted_lf.group_by("Account").agg(
-                pl.count().alias("Total_Transactions"),
+                pl.len().alias("Total_Transactions"),
                 pl.sum("amount").alias("Total_Amount"),
                 pl.sum("isFraud").alias("Fraudulent_Transactions"),
                 pl.when(pl.col("isFraud") == 1).then(pl.col("amount")).otherwise(0).sum().alias("Fraudulent_Amount")
@@ -385,14 +407,14 @@ def data_exploration():
     st.subheader("Distribution of Origin Account Balance After Fraudulent Transactions")
     balance_counts = fraud_df['newbalanceOrig'].value_counts().reset_index()
     balance_counts.columns = ['newbalanceOrig', 'count']
-    fig = px.scatter(balance_counts, x='newbalanceOrig', y='count', title='Number of Fraudulent Transactions per Origin Account Balance')
+    fig = px.scatter(balance_counts, x='newbalanceOrig', y='count', title='Number of Fraudulent Transactions per Origin Account Balance', color_discrete_sequence=["#7434f3", "#b494e6", "#bc91f7"])
     st.plotly_chart(fig, use_container_width=True)
 
     color_map = {
-        'Draining Frauds': 'crimson', 
-        'Other Frauds': 'lightgrey',
-        'Draining Transactions': 'crimson',
-        'Other Transactions': 'lightgrey'
+        'Draining Frauds': '#7434f3', 
+        'Other Frauds': '#b494e6',
+        'Draining Transactions': '#7434f3',
+        'Other Transactions': '#b494e6'
     }
     col1, col2= st.columns(2)
     with col1:
