@@ -4,3 +4,4 @@ plotly
 python-dotenv
 kaggle
 polars
+streamlit-scroll-to-top

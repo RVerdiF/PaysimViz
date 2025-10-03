@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
+from streamlit_scroll_to_top import scroll_to_here
+
 from src.DataHandler.Downloader import main as setup_database
 from src.DataHandler.DataHandler import return_df, DB_PATH, return_df_with_params, execute_query_in_chunks
 from src.Utils.queries import (
@@ -132,9 +134,13 @@ def load_main_data() -> pd.DataFrame:
     return df
 
 def home():
+
     logger.info("Displaying Home page.")
     
     if not DB_PATH.exists():
+        top_of_page_container = st.container()
+        top_of_page_container.key = 'top_of_page'
+        scroll_to_here(delay=10,key='top_of_page')
         st.title("Hi!")
         st.write("The PaySim dataset is not yet downloaded. Click the button below to start the download.")
         st.info("Note: This requires your Kaggle API credentials to be set up in Streamlit's secrets. Please add your Kaggle username and key to the secrets file.")
@@ -143,10 +149,14 @@ def home():
             download_wrapper()
             st.rerun()
     else:
-        st.title("Hi!")
+        top_of_page_container = st.container()
+        top_of_page_container.key = 'top_of_page'
+        scroll_to_here(delay=10,key='top_of_page')
+        title = st.title("Hi!")
         st.write("Welcome to the PaySim dataset explorer!")
         st.write("This app allows you to explore the PaySim dataset (https://www.kaggle.com/datasets/ealaxi/paysim1/data) and visualize its data.")  
-        
+        st.write("Please select a page from the sidebar to get started.")
+
         with st.spinner("Loading data..."):
             with ThreadPoolExecutor() as executor:
                 future_home_df = executor.submit(load_home_page_data)
@@ -191,6 +201,7 @@ def home():
 
         st.subheader("Descriptive Statistics")
         descriptive_stats_df = descriptive_stats_df.set_index('metric').T
+        descriptive_stats_df.index.name = 'Column'
         st.dataframe(descriptive_stats_df, width='stretch')
 
         st.subheader("Zero Amount Transaction Analysis")
@@ -224,8 +235,12 @@ def load_transaction_data() -> tuple[pd.DataFrame,pd.DataFrame]:
     logger.info("Transaction data loaded successfully.")
     return time_data_df, transposed, transaction_type_analysis_df, dataframe_metrics_df
 
-def data_exploration():
-    logger.info("Displaying Data Exploration page.")
+def data_analysis():
+    top_of_page_container = st.container()
+    top_of_page_container.key = 'top_of_page'
+    scroll_to_here(delay=10,key='top_of_page')
+    st.title("Paysim Data Analysis")
+    logger.info("Displaying Data Analysis page.")
 
     if not DB_PATH.exists():
         st.warning("The database has not been downloaded yet. Please go to the 'Home' page to download the dataset.")
@@ -382,7 +397,7 @@ def data_exploration():
             account_metrics_df = final_metrics_lf.collect().to_pandas()
             account_metrics_df['Fraudulent_Amount'] = account_metrics_df['Fraudulent_Amount'].fillna(0)
             
-            st.dataframe(account_metrics_df, width='stretch')
+            st.dataframe(account_metrics_df, width='stretch', hide_index=True)
         else:
             st.write("No transactions found for the identified mule accounts.")
         
@@ -407,7 +422,11 @@ def data_exploration():
     st.subheader("Distribution of Origin Account Balance After Fraudulent Transactions")
     balance_counts = fraud_df['newbalanceOrig'].value_counts().reset_index()
     balance_counts.columns = ['newbalanceOrig', 'count']
-    fig = px.scatter(balance_counts, x='newbalanceOrig', y='count', title='Number of Fraudulent Transactions per Origin Account Balance', color_discrete_sequence=["#7434f3", "#b494e6", "#bc91f7"])
+    fig = px.scatter(balance_counts, 
+                     x='newbalanceOrig', 
+                     y='count', 
+                     title='Number of Fraudulent Transactions per Origin Account Balance', 
+                     color_discrete_sequence=["#7434f3", "#b494e6", "#bc91f7"])
     st.plotly_chart(fig, use_container_width=True)
 
     color_map = {
@@ -476,7 +495,7 @@ def data_exploration():
 
 PAGES = {
     "Home": home,
-    "Data Exploration": data_exploration,
+    "Data Analysis": data_analysis,
 }
 
 # The data is expected to be downloaded and prepared before running the app.
@@ -486,5 +505,6 @@ logger.info("Skipping data setup. Database is expected to exist.")
 st.sidebar.title('Navigation')
 selection = st.sidebar.radio("Go to", list(PAGES.keys()))
 logger.info(f"Navigating to {selection} page.")
+
 page = PAGES[selection]
 page()
