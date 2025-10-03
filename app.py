@@ -124,17 +124,25 @@ def home():
 
         if st.button("Download Dataset", type="primary"):
             download_wrapper()
+            st.rerun()
     else:
         st.title("Home")
         st.write("Welcome to the PaySim dataset explorer!")
         st.write("This app allows you to explore the PaySim dataset (https://www.kaggle.com/datasets/ealaxi/paysim1/data) and visualize its data.")  
         
         with st.spinner("Loading data..."):
-            home_df = load_home_page_data()
-            descriptive_stats_df = load_descriptive_stats()
-            zero_amount_by_type_df = load_zero_amount_by_type()
-            zero_amount_by_fraud_df = load_zero_amount_by_fraud()
-            negative_value_df = load_negative_value_data()
+            with ThreadPoolExecutor() as executor:
+                future_home_df = executor.submit(load_home_page_data)
+                future_descriptive_stats_df = executor.submit(load_descriptive_stats)
+                future_zero_amount_by_type_df = executor.submit(load_zero_amount_by_type)
+                future_zero_amount_by_fraud_df = executor.submit(load_zero_amount_by_fraud)
+                future_negative_value_df = executor.submit(load_negative_value_data)
+
+                home_df = future_home_df.result()
+                descriptive_stats_df = future_descriptive_stats_df.result()
+                zero_amount_by_type_df = future_zero_amount_by_type_df.result()
+                zero_amount_by_fraud_df = future_zero_amount_by_fraud_df.result()
+                negative_value_df = future_negative_value_df.result()
 
         st.subheader("General DataFrame Information")
         
@@ -205,11 +213,18 @@ def data_exploration():
         st.warning("The database has not been downloaded yet. Please go to the 'Home' page to download the dataset.")
         return # Stop execution of the function
 
-    time_data_df, transaction_type_analysis_df_T, transaction_type_analysis_df, dataframe_metrics_df = load_transaction_data()
-    fraud_df = load_fraud_transactions()
-    confusion_matrix_df = load_confusion_matrix()
-    draining_stats_df = load_draining_transaction_stats()
-    draining_behavior_df = load_draining_behavior_by_type()
+    with ThreadPoolExecutor() as executor:
+        future_transaction_data = executor.submit(load_transaction_data)
+        future_fraud_df = executor.submit(load_fraud_transactions)
+        future_confusion_matrix_df = executor.submit(load_confusion_matrix)
+        future_draining_stats_df = executor.submit(load_draining_transaction_stats)
+        future_draining_behavior_df = executor.submit(load_draining_behavior_by_type)
+
+        time_data_df, transaction_type_analysis_df_T, transaction_type_analysis_df, dataframe_metrics_df = future_transaction_data.result()
+        fraud_df = future_fraud_df.result()
+        confusion_matrix_df = future_confusion_matrix_df.result()
+        draining_stats_df = future_draining_stats_df.result()
+        draining_behavior_df = future_draining_behavior_df.result()
     
     col1,col2,col3,col4 = st.columns(4)
     with col1:
@@ -322,9 +337,9 @@ def data_exploration():
         if polars_dfs:
             mule_transactions_pl = pl.concat(polars_dfs)
 
-            melted_lf = mule_transactions_pl.lazy().melt(
-                id_vars=["isFraud", "amount"],
-                value_vars=["nameOrig", "nameDest"],
+            melted_lf = mule_transactions_pl.lazy().unpivot(
+                index=["isFraud", "amount"],
+                on=["nameOrig", "nameDest"],
                 value_name="Account"
             )
 
