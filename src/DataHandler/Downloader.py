@@ -1,3 +1,7 @@
+'''
+Handles the data is download and the database is creation.
+'''
+
 import os
 import json
 import streamlit as st

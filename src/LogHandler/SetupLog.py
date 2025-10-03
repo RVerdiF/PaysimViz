@@ -1,3 +1,7 @@
+'''
+Sets up the logger.
+'''
+
 import logging
 
 def setup_logger():

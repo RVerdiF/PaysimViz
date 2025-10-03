@@ -1,4 +1,4 @@
-'''A simple streamlit app for the Kraken Interview.'''
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -272,7 +272,7 @@ def data_analysis():
         st.metric("Total Fraud Amount", f"${amount/1_000_000:,.0f}M")
 
     st.subheader("Transactions distribution over time")
-    st.info("For this exercise, let's assume the final step (1) is 2025-10-01 00:00:00. From that, each step is subtracted from the start date, ending on 2025-08-31 01:00:00" )
+    st.info("For this exercise, let's assume the final step (1) is 2025-09-30 23:00:00. From that, each step is subtracted from the start date, ending on 2025-08-31 01:00:00" )
     period = st.radio("Select the time range", ["Hourly", "Daily", "Weekly"], key="time_range", horizontal=True)
 
     time_data_df_filtered = time_data_df.copy(deep=True)
@@ -414,7 +414,7 @@ def data_analysis():
         query = f"SELECT * FROM paysim WHERE nameOrig IN ({placeholders}) OR nameDest IN ({placeholders})"
         params = selected_accounts * 2
         mule_account_transactions_selection = return_df_with_params(query, params)
-        st.dataframe(mule_account_transactions_selection, width='stretch')
+        st.dataframe(mule_account_transactions_selection, width='stretch', hide_index=True)
 
     st.markdown('---')
     st.header("Fraudulent Transaction Balance Analysis")
@@ -497,10 +497,6 @@ PAGES = {
     "Home": home,
     "Data Analysis": data_analysis,
 }
-
-# The data is expected to be downloaded and prepared before running the app.
-# Run `python src/DataHandler/Downloader.py` manually to do this.
-logger.info("Skipping data setup. Database is expected to exist.")
 
 st.sidebar.title('Navigation')
 selection = st.sidebar.radio("Go to", list(PAGES.keys()))

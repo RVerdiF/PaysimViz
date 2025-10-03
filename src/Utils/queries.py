@@ -1,4 +1,6 @@
-
+'''
+Contains all queries used in the app.
+'''
 all_data = '''
 select
 *
@@ -139,7 +141,7 @@ dataframe_metrics = '''
 
 time_data = '''
     select
-    datetime('2025-10-01', '-' || step || ' hours') date,
+    datetime('2025-10-01 00:00:00', '-' || step || ' hours') date,
     count(*) count
     from paysim
     group by step
