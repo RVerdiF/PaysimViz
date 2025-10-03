@@ -213,10 +213,10 @@ def home():
             st.write("Breakdown by transaction type:")
             st.dataframe(zero_amount_by_type_df.set_index('type'), width='stretch')
             
-            st.write("Breakdown by fraud status:")
-            zero_amount_by_fraud_df.index = zero_amount_by_fraud_df.isFraud.map({0: 'Not Fraud', 1: 'Fraud'})
-            zero_amount_by_fraud_df = zero_amount_by_fraud_df.drop(columns=['isFraud'])
-            st.dataframe(zero_amount_by_fraud_df, width='stretch')
+            # st.write("Breakdown by fraud status:")
+            # zero_amount_by_fraud_df.index = zero_amount_by_fraud_df.isFraud.map({0: 'Not Fraud', 1: 'Fraud'})
+            # zero_amount_by_fraud_df = zero_amount_by_fraud_df.drop(columns=['isFraud'])
+            # st.dataframe(zero_amount_by_fraud_df, width='stretch')
 
         else:
             st.success("No transactions with an amount of 0 found.")
@@ -266,10 +266,21 @@ def data_analysis():
         amount = dataframe_metrics_df[dataframe_metrics_df['metric']=='sum_amount']['value'].iloc[0]
         st.metric("Total Amount", f"${amount/1_000_000:,.0f}M")
     with col3:
-        st.metric("Total Fraud Count", int(dataframe_metrics_df[dataframe_metrics_df['metric']=='fraud_count']['value'].iloc[0]))
+        delta = round((
+            int(dataframe_metrics_df[dataframe_metrics_df['metric']=='fraud_count']['value'].iloc[0])/
+            int(dataframe_metrics_df[dataframe_metrics_df['metric']=='count']['value'].iloc[0])
+        )*100,4)
+        st.metric("Total Fraud Count", 
+                  int(dataframe_metrics_df[dataframe_metrics_df['metric']=='fraud_count']['value'].iloc[0]),
+                  delta=f"{delta}%"
+                  )
     with col4:
+        delta = round((
+            dataframe_metrics_df[dataframe_metrics_df['metric']=='fraud_amount']['value'].iloc[0]/
+            dataframe_metrics_df[dataframe_metrics_df['metric']=='sum_amount']['value'].iloc[0]
+        )*100,4)
         amount = dataframe_metrics_df[dataframe_metrics_df['metric']=='fraud_amount']['value'].iloc[0]
-        st.metric("Total Fraud Amount", f"${amount/1_000_000:,.0f}M")
+        st.metric("Total Fraud Amount", f"${amount/1_000_000:,.0f}M", delta=f"{delta}%")
 
     st.subheader("Transactions distribution over time")
     st.info("For this exercise, let's assume the final step (1) is 2025-09-30 23:00:00. From that, each step is subtracted from the start date, ending on 2025-08-31 01:00:00" )
@@ -291,7 +302,22 @@ def data_analysis():
     st.subheader("Transaction types overview")
     col1, col2 = st.columns(2)
     with col1:
-        st.plotly_chart(px.pie(transaction_type_analysis_df, title='Count of transactions by type', names='type', values='count', color_discrete_sequence=["#7434f3", "#b494e6", "#bc91f7"]), use_container_width=True)
+        # st.plotly_chart(px.pie(transaction_type_analysis_df, title='Count of transactions by type', names='type', values='count', 
+        #                        color_discrete_sequence=[
+        #                            "#5403f7", 
+        #                            "#8942fa", 
+        #                            "#c9a3fd",
+        #                            "#d8c2f7",
+        #                            "#9d9ba0",
+        #                            ]), use_container_width=True)
+        st.plotly_chart(px.histogram(transaction_type_analysis_df, title='Transaction distribution by type', x='type', y='count', labels=['Transaction type','Count'],
+                               color_discrete_sequence=[
+                                   "#793cf3", 
+                                #    "#8942fa", 
+                                #    "#c9a3fd",
+                                #    "#d8c2f7",
+                                #    "#9d9ba0",
+                                   ]), use_container_width=True)
     with col2:
         fraud_by_type = fraud_df['type'].value_counts().reset_index()
         fraud_by_type.columns = ['type', 'count']
@@ -494,7 +520,22 @@ def data_analysis():
 
     st.dataframe(summary[['% Draining (Not Fraud)', '% Draining (Fraud)']].style.format('{:.2f}%'), width='stretch')
 
-    st.warning("Proposed Rule: Flag 'TRANSFER' and 'CASH_OUT' type transactions that result in a zero balance in the origin account for manual review.")
+    # st.warning("Proposed Rule: Flag 'TRANSFER' and 'CASH_OUT' type transactions that result in a zero balance in the origin account for manual review.")
+
+    st.markdown('---')
+
+    st.header("Recommendations")
+    st.info(
+        '''
+**Recommendation 1:** Implement real-time monitoring with rules focused on TRANSFER and CASH_OUT transactions that zero out the source account's balance.
+
+**Recommendation 2:** Initiate an immediate investigation into the 'Top Fraud Recipients' account list to identify money laundering networks.
+
+**Recommendation 3:** Review and calibrate the isFlaggedFraud rule, considering other behavioral variables.
+
+**Recommendation 4:** Enhance the data with other relevant information like ip, geolocation and the financial institution that sent/received the transaction 
+'''
+    )
 
 PAGES = {
     "Home": home,
