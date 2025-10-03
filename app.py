@@ -289,15 +289,16 @@ def data_analysis():
     st.plotly_chart(px.line(time_data_df_filtered, x='date', y='count', color_discrete_sequence=["#7434f3", "#b494e6", "#bc91f7"]), use_container_width=True)
     st.markdown('---')
     st.subheader("Transaction types overview")
-    col1, col2 = st.columns([0.3,0.7])
+    col1, col2 = st.columns(2)
     with col1:
         st.plotly_chart(px.pie(transaction_type_analysis_df, title='Count of transactions by type', names='type', values='count', color_discrete_sequence=["#7434f3", "#b494e6", "#bc91f7"]), use_container_width=True)
     with col2:
-        st.write(' ')
-        st.write(' ')
-        st.write(' ')
-        st.write(' ')
-        st.dataframe(transaction_type_analysis_df_T)
+        fraud_by_type = fraud_df['type'].value_counts().reset_index()
+        fraud_by_type.columns = ['type', 'count']
+        st.plotly_chart(px.pie(fraud_by_type, title='Fraud distribution by transaction type', names='type', values='count', color_discrete_sequence=["#7434f3", "#b494e6", "#bc91f7"]), use_container_width=True)
+    st.dataframe(transaction_type_analysis_df_T)
+
+    st.info('''By analyzing the charts above, we can see that the fraudulent transactions are located primarily on transfers and cash outs.''')
     
     st.markdown('---')
     st.header("Fraud & Amount Analysis")
@@ -401,6 +402,8 @@ def data_analysis():
         else:
             st.write("No transactions found for the identified mule accounts.")
         
+    st.info("Even though only some transactions are flagged as fraud, it's important to check if the other transactions related to fraudsters are not contaminated as well.")
+
     st.subheader("Explore All Transactions of Potentially Fraudulent Accounts")
     
     selected_accounts = st.multiselect(
@@ -466,7 +469,7 @@ def data_analysis():
             )
         with col2:
             st.metric(
-                "All Transactions",
+                "Total Transactions",
                 f"{total_transactions_all}"
             )
         pie_data_all = pd.DataFrame({
@@ -476,7 +479,7 @@ def data_analysis():
         fig_pie_all = px.pie(pie_data_all, names='Category', values='Count', title='Proportion of Balance-Draining Transactions (All)', color='Category', color_discrete_map=color_map)
         st.plotly_chart(fig_pie_all, use_container_width=True)
 
-    st.info("Insight: A critical insight emerges from balance analysis: while over 90% of fraudulent transactions completely empty the source account, this behavior is extremely rare among genuine customers, occurring in only 0.12% of their transactions.")
+    st.info("A critical insight emerges from balance analysis: while over 90% of fraudulent transactions completely empty the source account, this behavior is extremely rare among genuine customers, occurring in only 0.12% of their transactions.")
 
     st.subheader("Balance-Draining Behavior by Transaction Type")
 
