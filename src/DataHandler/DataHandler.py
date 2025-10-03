@@ -21,3 +21,11 @@ def return_df_with_params(query, params) -> pd.DataFrame:
         return data
     except Exception as e:
         raise sqlite3.Error(e)
+
+def execute_query_in_chunks(query, params, chunksize) -> pd.DataFrame:
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            for chunk in pd.read_sql(query, conn, params=params, chunksize=chunksize):
+                yield chunk
+    except Exception as e:
+        raise sqlite3.Error(e)

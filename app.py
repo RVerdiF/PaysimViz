@@ -2,9 +2,13 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import polars as pl
+import os
+from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
 
 from src.DataHandler.Downloader import main as setup_database
-from src.DataHandler.DataHandler import return_df, DB_PATH, return_df_with_params
+from src.DataHandler.DataHandler import return_df, DB_PATH, return_df_with_params, execute_query_in_chunks
 from src.Utils.queries import (
     all_data,
     dataframe_metrics,
@@ -209,18 +213,18 @@ def data_exploration():
     
     col1,col2,col3,col4 = st.columns(4)
     with col1:
-        st.metric("Total Transactions", dataframe_metrics_df[dataframe_metrics_df['metric']=='count']['value'].iloc[0])
+        st.metric("Total Transactions", int(dataframe_metrics_df[dataframe_metrics_df['metric']=='count']['value'].iloc[0]))
     with col2:
         amount = dataframe_metrics_df[dataframe_metrics_df['metric']=='sum_amount']['value'].iloc[0]
-        st.metric("Total Amount", f"${amount:,.2f}")
+        st.metric("Total Amount", f"${amount/1_000_000:,.0f}M")
     with col3:
-        st.metric("Total Fraud Count", dataframe_metrics_df[dataframe_metrics_df['metric']=='fraud_count']['value'].iloc[0])
+        st.metric("Total Fraud Count", int(dataframe_metrics_df[dataframe_metrics_df['metric']=='fraud_count']['value'].iloc[0]))
     with col4:
         amount = dataframe_metrics_df[dataframe_metrics_df['metric']=='fraud_amount']['value'].iloc[0]
-        st.metric("Total Fraud Amount", f"${amount:,.2f}")
-
+        st.metric("Total Fraud Amount", f"${amount/1_000_000:,.0f}M")
 
     st.subheader("Transactions distribution over time")
+    st.info("For this exercise, let's assume the final step (1) is 2025-10-01 00:00:00. From that, each step is subtracted from the start date." )
     period = st.radio("Select the time range", ["Hourly", "Daily", "Weekly"], key="time_range", horizontal=True)
 
     time_data_df_filtered = time_data_df.copy(deep=True)
@@ -234,7 +238,7 @@ def data_exploration():
         time_data_df_filtered['date'] = time_data_df_filtered['date'].dt.to_period('W').dt.to_timestamp()
         time_data_df_filtered = time_data_df_filtered.groupby('date').sum().reset_index()
     
-    st.line_chart(data=time_data_df_filtered, x='date', y='count')
+    st.plotly_chart(px.line(time_data_df_filtered, x='date', y='count'), use_container_width=True)
     st.markdown('---')
     st.subheader("Transaction types overview")
     col1, col2 = st.columns(2)
@@ -300,6 +304,50 @@ def data_exploration():
         top_dest = fraud_df['nameDest'].value_counts().nlargest(10).to_frame()
         top_dest.rename(columns={'count': 'Number of Frauds'}, inplace=True)
         st.dataframe(top_dest)
+        
+    st.subheader("Potential Mule Accounts Transactional Overview")
+
+    with st.spinner("Analyzing potential mule accounts... This may take a moment."):
+        fraudulent_accounts_list = list(fraudulent_accounts)
+        
+        # --- Efficiently process mule account transactions in chunks --- #
+        placeholders = ', '.join('?' for _ in fraudulent_accounts_list)
+        query = f"SELECT nameOrig, nameDest, amount, isFraud FROM paysim WHERE nameOrig IN ({placeholders}) OR nameDest IN ({placeholders})"
+        params = fraudulent_accounts_list * 2
+        
+        polars_dfs = []
+        for df_chunk in execute_query_in_chunks(query, params, chunksize=100_000):
+            polars_dfs.append(pl.from_pandas(df_chunk))
+
+        if polars_dfs:
+            mule_transactions_pl = pl.concat(polars_dfs)
+
+            melted_lf = mule_transactions_pl.lazy().melt(
+                id_vars=["isFraud", "amount"],
+                value_vars=["nameOrig", "nameDest"],
+                value_name="Account"
+            )
+
+            account_metrics_lf = melted_lf.group_by("Account").agg(
+                pl.count().alias("Total_Transactions"),
+                pl.sum("amount").alias("Total_Amount"),
+                pl.sum("isFraud").alias("Fraudulent_Transactions"),
+                pl.when(pl.col("isFraud") == 1).then(pl.col("amount")).otherwise(0).sum().alias("Fraudulent_Amount")
+            )
+
+            final_metrics_lf = account_metrics_lf.filter(
+                pl.col("Account").is_in(fraudulent_accounts_list)
+            ).sort(
+                by=["Fraudulent_Transactions", "Total_Transactions"],
+                descending=True
+            )
+
+            account_metrics_df = final_metrics_lf.collect().to_pandas()
+            account_metrics_df['Fraudulent_Amount'] = account_metrics_df['Fraudulent_Amount'].fillna(0)
+            
+            st.dataframe(account_metrics_df, width='stretch')
+        else:
+            st.write("No transactions found for the identified mule accounts.")
         
     st.subheader("Explore All Transactions of Potentially Fraudulent Accounts")
     
@@ -387,16 +435,7 @@ def data_exploration():
 
     st.dataframe(summary[['% Draining (Not Fraud)', '% Draining (Fraud)']].style.format('{:.2f}%'), width='stretch')
 
-    st.warning("Proposed Rule: Flag 'TRANSFER' type transactions that result in a zero balance in the origin account for manual review.")
-
-        
-def model_performance():
-    st.title("Current Model Performance")
-    st.write("This page will briefily show the performance of the current fraud detection model.")
-
-def fraud_detection():
-    st.title("Fraud Detection")
-    st.write("This page will allow you to interact with the fraud detection model.")
+    st.warning("Proposed Rule: Flag 'TRANSFER' and 'CASH_OUT' type transactions that result in a zero balance in the origin account for manual review.")
 
 PAGES = {
     "Home": home,
